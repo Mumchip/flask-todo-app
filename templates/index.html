@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="add-task">
+    <input type="text" id="new-task-input" placeholder="What needs to be done?" />
+    <button id="add-task-button">Add Task</button>
+</section>
+
+<ul id="task-list">
+    {% for task in tasks %}
+        <li data-id="{{ task.id }}" class="task {% if task.completed %}completed{% endif %}">
+            <label>
+                <input type="checkbox" class="toggle" {% if task.completed %}checked{% endif %} />
+                <span class="title">{{ task.title }}</span>
+            </label>
+            <button class="delete" title="Delete">×</button>
+        </li>
+    {% endfor %}
+</ul>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+// Add a new task
+document.getElementById('add-task-button').addEventListener('click', async () => {
+    const input = document.getElementById('new-task-input');
+    const title = input.value.trim();
+    if (!title) return;
+    const response = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title})
+    });
+    if (response.ok) {
+        const task = await response.json();
+        appendTask(task);
+        input.value = '';
+    }
+});
+
+// Helper to append a task to the list
+function appendTask(task) {
+    const list = document.getElementById('task-list');
+    const li = document.createElement('li');
+    li.setAttribute('data-id', task.id);
+    li.className = 'task' + (task.completed ? ' completed' : '');
+    li.innerHTML = `
+        <label>
+            <input type="checkbox" class="toggle" ${task.completed ? 'checked' : ''} />
+            <span class="title"></span>
+        </label>
+        <button class="delete" title="Delete">×</button>
+    `;
+    li.querySelector('.title').textContent = task.title;
+    // Bind events for toggle and delete
+    bindTaskEvents(li);
+    // Prepend to list
+    list.insertBefore(li, list.firstChild);
+}
+
+// Bind toggle and delete events for a given list item
+function bindTaskEvents(li) {
+    const checkbox = li.querySelector('.toggle');
+    checkbox.addEventListener('change', async () => {
+        const id = li.getAttribute('data-id');
+        const completed = checkbox.checked;
+        const response = await fetch(`/api/tasks/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({completed})
+        });
+        if (response.ok) {
+            li.classList.toggle('completed', completed);
+        }
+    });
+    const deleteBtn = li.querySelector('.delete');
+    deleteBtn.addEventListener('click', async () => {
+        const id = li.getAttribute('data-id');
+        const response = await fetch(`/api/tasks/${id}`, {
+            method: 'DELETE'
+        });
+        if (response.ok) {
+            li.remove();
+        }
+    });
+}
+
+// Initially bind events to existing tasks
+document.querySelectorAll('#task-list li').forEach(li => bindTaskEvents(li));
+</script>
+{% endblock %}
